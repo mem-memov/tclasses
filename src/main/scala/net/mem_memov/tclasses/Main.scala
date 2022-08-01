@@ -16,31 +16,33 @@ trait Encoder[A, B]:
 
   def encode(a: A, b: B): B
 
-//  extension (a: A)
-//    def enc(b: B)(using encoder: Encoder[A, B]): B = encoder.encode(a, b)
-
 object Encoder:
 
-  given countryEncoder: Encoder[Country, Row] with
+  def apply[A, B](using instance: Encoder[A, B]): Encoder[A, B] = instance // summon
+
+  extension [A, B](a: A)
+    def enc(b: B)(using encoder: Encoder[A, B]): B = encoder.encode(a, b)
+
+  given Encoder[Country, Row] with
     override def encode(country: Country, row: Row): Row = row.copy(country = country.name)
 
-  given brandEncoder (using countryEncoder: Encoder[Country, Row]): Encoder[Brand, Row] with
+  given Encoder[Brand, Row] with
     override def encode(brand: Brand, row: Row): Row =
       val brandRow = row.copy(brand = brand.name)
-      countryEncoder.encode(brand.country, brandRow)
+      Encoder[Country, Row].encode(brand.country, brandRow)
 
-  given sizeEncoder: Encoder[Size, Row] with
+  given Encoder[Size, Row] with
     override def encode(size: Size, row: Row): Row = row.copy(size = size.value)
 
-  given productEncoder (using sizeEncoder: Encoder[Size, Row], brandEncoder: Encoder[Brand, Row]): Encoder[Product, Row] with
+  given Encoder[Product, Row] with
     override def encode(product: Product, row: Row): Row =
-      val sizeRow = sizeEncoder.encode(product.size, row)
-      val brandRow = brandEncoder.encode(product.brand, sizeRow)
+      val sizeRow = Encoder[Size, Row].encode(product.size, row)
+      val brandRow = Encoder[Brand, Row].encode(product.brand, sizeRow)
       brandRow.copy(product = product.name)
 
 @main
 def main(): Unit =
   import Encoder.*
   val p = Product("кеды", Size("XXL"), Brand("Adidas", Country("USA")))
-  val r = Encoder.productEncoder.encode(p, Row.empty)
+  val r = p.enc(Row.empty)
   println(r) // Row(кеды,Adidas,XXL,USA)
