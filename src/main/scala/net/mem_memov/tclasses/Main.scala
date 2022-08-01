@@ -40,9 +40,42 @@ object Encoder:
       val brandRow = Encoder[Brand, Row].encode(product.brand, sizeRow)
       brandRow.copy(product = product.name)
 
+trait Decoder[A, B]:
+
+  def decode(b: B): A
+
+object Decoder:
+
+  def apply[A, B](using instance: Decoder[A, B]): Decoder[A, B] = instance // summon
+
+  extension [B](b: B)
+    def dec[A](using Decoder: Decoder[A, B]): A = Decoder.decode(b)
+
+  given Decoder[Country, Row] with
+    override def decode(row: Row): Country = Country(row.country)
+
+  given Decoder[Brand, Row] with
+    override def decode(row: Row): Brand =
+      Brand(row.brand, Decoder[Country, Row].decode(row))
+
+  given Decoder[Size, Row] with
+    override def decode(row: Row): Size = Size(row.size)
+
+  given Decoder[Product, Row] with
+    override def decode(row: Row): Product =
+      Product(
+        row.product,
+        Decoder[Size, Row].decode(row),
+        Decoder[Brand, Row].decode(row)
+      )
+
 @main
 def main(): Unit =
   import Encoder.*
-  val p = Product("кеды", Size("XXL"), Brand("Adidas", Country("USA")))
-  val r = p.enc(Row.empty)
-  println(r) // Row(кеды,Adidas,XXL,USA)
+  val product = Product("кеды", Size("XXL"), Brand("Adidas", Country("USA")))
+  val row = product.enc(Row.empty)
+  println(row) // Row(кеды,Adidas,XXL,USA)
+
+  import Decoder.*
+  val restoredProduct = row.dec[Product]
+  println(restoredProduct) // Product(кеды,Size(XXL),Brand(Adidas,Country(USA)))
